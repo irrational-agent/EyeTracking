@@ -58,16 +58,16 @@ def random_offset_image(image, max_offset=MAX_OFFSET):
     return shifted
 
 def load_data_from_db(db_path: str):
-    """Load left eye images and labels from the SQLite database.
-    
-    Only rows where leftEyeFrame is non-empty are used.
+    """
+    Load left eye images and openness labels from the SQLite database.
+    Only rows where leftEyeFrame is non-empty and type is 'openness' are used.
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT leftEyeFrame, theta1, theta2
+        SELECT leftEyeFrame, openness
         FROM training_data
-        WHERE leftEyeFrame != '' AND type == 'gaze'
+        WHERE leftEyeFrame != '' AND type == 'openness'
         ORDER BY RANDOM()
         LIMIT 35000
     """)
@@ -76,17 +76,16 @@ def load_data_from_db(db_path: str):
     
     images = []
     labels = []
-    
-    for left_frame, theta1, theta2 in rows:
+    for left_frame, openness in rows:
         left_img = preprocess_eye(left_frame, size=(128, 128))
         left_img = random_offset_image(left_img, max_offset=MAX_OFFSET)
         images.append(left_img)
-        labels.append([theta1, theta2])
+        labels.append([openness])
     
     return np.array(images), np.array(labels)
 
 def main():
-    parser = argparse.ArgumentParser(description="Train Left Eye Pitch/Yaw Model from SQLite DB")
+    parser = argparse.ArgumentParser(description="Train Left Eye Openness Model from SQLite DB")
     parser.add_argument("--db_path", required=True, help="Path to the SQLite database file")
     parser.add_argument("--output_dir", required=True, help="Folder to save the trained model")
     args = parser.parse_args()
@@ -99,29 +98,30 @@ def main():
         images, labels, test_size=0.2, random_state=42
     )
     
-    # Build the left eye pitch/yaw model using Sequential API
+    # Build the Left Eye Openness regression model
     model = Sequential([
         InputLayer(input_shape=(128, 128, 3)),
-
+        
+        Conv2D(16, (7, 7), activation='relu'),
+        MaxPooling2D((3, 3)),
+        
         Conv2D(32, (7, 7), activation='relu'),
         MaxPooling2D((3, 3)),
-
+        
         Conv2D(64, (7, 7), activation='relu'),
         MaxPooling2D((3, 3)),
-
-        Conv2D(128, (7, 7), activation='relu'),
-        MaxPooling2D((3, 3)),
         Flatten(),
-
+        
+        Dropout(0.2),
         Dense(64, activation='relu'),
-        Dense(2, name='gaze-c')
+        Dense(1, name='open-c')
     ])
     
     model.compile(optimizer='adam', loss='mse', metrics=['mae'])
     model.summary()
     
     lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor='val_loss', factor=0.5, patience=6, verbose=1, min_lr=1e-6
+        monitor='val_loss', factor=0.5, patience=5, verbose=1, min_lr=1e-6
     )
     early_stopping = tf.keras.callbacks.EarlyStopping(
         monitor='val_loss', patience=15, restore_best_weights=True, verbose=1
@@ -139,7 +139,7 @@ def main():
     print("Test loss and MAE:", results)
     
     os.makedirs(args.output_dir, exist_ok=True)
-    model_save_path = os.path.join(args.output_dir, "left_pitchyaw.h5")
+    model_save_path = os.path.join(args.output_dir, "left_openness.h5")
     model.save(model_save_path)
     print("Model saved to", model_save_path)
 
