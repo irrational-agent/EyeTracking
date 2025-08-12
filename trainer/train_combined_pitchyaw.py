@@ -106,10 +106,10 @@ def main():
 
     # Callbacks
     lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor='val_loss', factor=0.5, patience=6, verbose=1, min_lr=1e-6
+        monitor='val_loss', factor=0.5, patience=2, verbose=1, min_lr=1e-6
     )
     early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss', patience=3, restore_best_weights=True, verbose=1
+        monitor='val_loss', patience=4, restore_best_weights=True, verbose=1
     )
 
     history = model.fit(
