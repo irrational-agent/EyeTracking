@@ -102,7 +102,7 @@ def export_dataset(db_path, output_dir, img_size=(128, 128), clear_folder=False)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Export gaze and openness datasets from SQLite DB to folders with images and CSV labels.")
     parser.add_argument("--db_path", required=True, help="Path to the SQLite database file")
-    parser.add_argument("--output_dir", required=True, help="Output directory for images and CSV")
+    parser.add_argument("--output_dir", required=False, help="Output directory for images and CSV", default="./dataset")
     parser.add_argument("--img_size", type=int, nargs=2, default=[128, 128], help="Image size as two integers (width height)")
     parser.add_argument("--clear", action="store_true", help="Clear output directory before exporting")
     args = parser.parse_args()

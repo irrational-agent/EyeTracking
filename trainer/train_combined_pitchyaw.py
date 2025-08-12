@@ -7,11 +7,13 @@ from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
 from keras import Sequential
-from keras.layers import InputLayer, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from keras.layers import InputLayer, Conv2D, MaxPooling2D, Flatten, Dense
 from keras.layers import RandomTranslation
 from keras.optimizers import Adam
 
-from settings import MAX_OFFSET, BATCH_SIZE, IMG_SIZE, INPUT_SHAPE, DATASET_DIR, OUTPUT_DIR, LEARNING_RATE
+from settings import MAX_OFFSET, BATCH_SIZE, IMG_SIZE, INPUT_SHAPE, DATASET_DIR, OUTPUT_DIR, LEARNING_RATE, EPOCHS
+
+GAZE_DATASET_DIR = os.path.join(DATASET_DIR, "gaze")
 
 def load_labels(csv_path):
     rows = []
@@ -62,7 +64,7 @@ class EyeDataGenerator(tf.keras.utils.Sequence):
 
 def main():
     # Load all label rows
-    csv_path = os.path.join(DATASET_DIR, "labels.csv")
+    csv_path = os.path.join(GAZE_DATASET_DIR, "labels.csv")
     all_rows = load_labels(csv_path)
 
     # Split into train/test
@@ -76,9 +78,9 @@ def main():
     val_rows = train_rows[:val_split]
     train_rows = train_rows[val_split:]
 
-    train_gen = EyeDataGenerator(train_rows, DATASET_DIR, batch_size=BATCH_SIZE, shuffle=True)
-    val_gen = EyeDataGenerator(val_rows, DATASET_DIR, batch_size=BATCH_SIZE, shuffle=False)
-    test_gen = EyeDataGenerator(test_rows, DATASET_DIR, batch_size=BATCH_SIZE, shuffle=False)
+    train_gen = EyeDataGenerator(train_rows, GAZE_DATASET_DIR, batch_size=BATCH_SIZE, shuffle=True)
+    val_gen = EyeDataGenerator(val_rows, GAZE_DATASET_DIR, batch_size=BATCH_SIZE, shuffle=False)
+    test_gen = EyeDataGenerator(test_rows, GAZE_DATASET_DIR, batch_size=BATCH_SIZE, shuffle=False)
 
     # Build the model
     model = Sequential([
@@ -107,12 +109,12 @@ def main():
         monitor='val_loss', factor=0.5, patience=6, verbose=1, min_lr=1e-6
     )
     early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss', patience=15, restore_best_weights=True, verbose=1
+        monitor='val_loss', patience=3, restore_best_weights=True, verbose=1
     )
 
     history = model.fit(
         train_gen,
-        epochs=200,
+        epochs=EPOCHS,
         validation_data=val_gen,
         callbacks=[lr_scheduler, early_stopping]
     )
