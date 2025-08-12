@@ -22,11 +22,15 @@ Issues found in the original:
 - Dataset uses both eye openness and eye gaze data (merged) and you can't just clear one type of data to record it again. 
 
 Todo list:
-- [ ] Refactor training code.
-- [ ] Make data load gradually, by batches. In this case, much, much less memory is used.
+- [x] Refactor training code.
+- [x] Make data load gradually, by batches. In this case, much, much less memory is used.
+- [ ] Apply changes to all training files.
 - [ ] Remove database usage. Switch to regular folders (I prefer this for faster training because loading the database each time is terrible).
 - [ ] Separate eye gaze data and eye openness data. (to record data separately. Now if you mess up data in the dataset, both gaze and openness data will be bad).
+- [ ] Make converter script use the same environment?
 - [ ] Automate target movement in Unity app.
 - [ ] Recording indicators in Unity app.
 - [ ] Display recorded data samples count in Unity app.
 - [ ] Better eye openness visualization in Unity app?
+- [ ] Improve data augmentation.
+- [ ] Add dropout layers?
