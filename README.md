@@ -11,9 +11,9 @@ View [dev branch](https://github.com/irrational-agent/EyeTracking/tree/dev) to s
 
 --- 
 
-Work in progress...
+Right now project is not working (work in progress). Wait for a release.
 
-Issues found in the original:
+Issues found in the original work:
 - Tested on RTX 3070TI + 32GB RAM, does not work (memory issues).
 - Tested on RTX 5070 + 24GB RAM, does not work (memory issues).
 - Images are read as RGB and the model uses 3 channels, however the training data is grayscale.
@@ -25,7 +25,7 @@ Todo list:
 - [x] Refactor training code.
 - [x] Make data load gradually, by batches. In this case, much, much less memory is used.
 - [ ] Apply changes to all training files.
-- [ ] Remove database usage. Switch to regular folders (I prefer this for faster training because loading the database each time is terrible).
+- [ ] Remove database usage, at least during training. Switch to regular folders (I prefer this for faster training because loading the database each time is terrible).
 - [ ] Separate eye gaze data and eye openness data. (to record data separately. Now if you mess up data in the dataset, both gaze and openness data will be bad).
 - [ ] Make converter script use the same environment?
 - [ ] Automate target movement in Unity app.
