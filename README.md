@@ -8,6 +8,7 @@ This is a fork of the repository: https://github.com/ryan9411vr/EyeTracking.
 View the original repository for the detailed usage tutorial. 
 
 As of now, nothing is ready (just started working on the project).
+
 --- 
 
 Work in progress...
@@ -16,7 +17,7 @@ Issues found in the original:
 - [ ] Tested on RTX 3070TI + 32GB RAM, does not work (memory issues).
 - [ ] Tested on RTX 5070 + 24GB RAM, does not work (memory issues).
 - [ ] Images are read as RGB and the model uses 3 channels, however the training data is grayscale.
-- [ ] All the data is loaded into RAM at once. 
+- [ ] All the data is loaded into RAM at once. Therefore, original work has hardcoded limits. Loading data by batches should unlock the ability to train larger datasets.
 - [ ] Loading data from the database is very slow. I would just remove the database.
 - [ ] Dataset uses both eye openness and eye gaze data (merged) and you can't just clear one type of data to record it again. 
 
