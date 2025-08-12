@@ -35,5 +35,15 @@ Todo list:
 - [ ] Improve data augmentation.
 - [ ] Add dropout layers?
 
+Refactored scripts:
+- [x] train_combined_pitchyaw.py
+- [x] train_combined_openness.py
+- [ ] train_combined_openness_gen_2.py
+- [ ] train_left_openness_combined_distillation.py
+- [ ] train_right_openness_combined_distillation.py
+- [ ] train_left_openness.py
+- [ ] train_right_openness.py
+- [ ] ui.py
+
 Future plans:
-- [ ] An ability to merge different datasets? Pretrained networks?
+- [ ] An ability to merge different datasets? Pretrained models?
