@@ -7,7 +7,7 @@ However, I really like what the author did so I decided to make my improvements 
 This is a fork of the repository: https://github.com/ryan9411vr/EyeTracking.
 View the original repository for the detailed usage tutorial. 
 
-As of now, nothing is ready (just started working on the project).
+View [dev branch](https://github.com/irrational-agent/EyeTracking/tree/dev) to see recent progress.
 
 --- 
 
@@ -34,3 +34,6 @@ Todo list:
 - [ ] Better eye openness visualization in Unity app?
 - [ ] Improve data augmentation.
 - [ ] Add dropout layers?
+
+Future plans:
+- [ ] An ability to merge different datasets? Pretrained networks?
