@@ -1,161 +1,127 @@
 #!/usr/bin/env python
 import os
-# Set the variable before importing TensorFlow
-os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
-
-import argparse
-import sqlite3
-import base64
-from io import BytesIO
+import csv
 import numpy as np
 from PIL import Image
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
-from tensorflow.keras import Sequential
-from tensorflow.keras.layers import InputLayer, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 
-MAX_OFFSET = 10              # Maximum pixel offset for on-the-fly augmentation.
+from keras import Sequential
+from keras.layers import InputLayer, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from keras.layers import RandomTranslation
+from keras.optimizers import Adam
 
-def data_url_to_image(data_url: str):
-    header, encoded = data_url.split(',', 1)
-    data = base64.b64decode(encoded)
-    return Image.open(BytesIO(data))
+from settings import MAX_OFFSET, BATCH_SIZE, IMG_SIZE, INPUT_SHAPE, DATASET_DIR, OUTPUT_DIR, LEARNING_RATE, EPOCHS
 
-def preprocess_eye(data_url: str, size=(128, 128)):
-    """Decode a data URL into an image array."""
-    img = data_url_to_image(data_url).convert("RGB").resize(size)
-    return np.array(img) / 255.0
+OPENNESS_DATASET_DIR = os.path.join(DATASET_DIR, "openness")
 
-def random_offset_image(image, max_offset=MAX_OFFSET):
-    """
-    Generate an augmented version of the image by randomly offsetting it in the x and y axes.
-    Empty regions are filled with zeros.
-    """
-    h, w, c = image.shape
-    offset_x = np.random.randint(-max_offset, max_offset + 1)
-    offset_y = np.random.randint(-max_offset, max_offset + 1)
-    
-    shifted = np.zeros_like(image)
-    # For x axis.
-    if offset_x >= 0:
-        src_x_start, src_x_end = 0, w - offset_x
-        dest_x_start, dest_x_end = offset_x, w
-    else:
-        src_x_start, src_x_end = -offset_x, w
-        dest_x_start, dest_x_end = 0, w + offset_x
+def load_labels(csv_path):
+    rows = []
+    with open(csv_path, "r", newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            rows.append(row)
+    return rows
 
-    # For y axis.
-    if offset_y >= 0:
-        src_y_start, src_y_end = 0, h - offset_y
-        dest_y_start, dest_y_end = offset_y, h
-    else:
-        src_y_start, src_y_end = -offset_y, h
-        dest_y_start, dest_y_end = 0, h + offset_y
-    
-    shifted[dest_y_start:dest_y_end, dest_x_start:dest_x_end, :] = \
-        image[src_y_start:src_y_end, src_x_start:src_x_end, :]
-    
-    return shifted
+class OpennessDataGenerator(tf.keras.utils.Sequence):
+    def __init__(self, rows, dataset_dir, batch_size=BATCH_SIZE, img_size=IMG_SIZE, shuffle=True):
+        self.rows = rows
+        self.dataset_dir = dataset_dir
+        self.batch_size = batch_size
+        self.img_size = img_size
+        self.shuffle = shuffle
+        self.indices = np.arange(len(self.rows))
+        self.on_epoch_end()
 
-def load_data_from_db(db_path: str):
-    """
-    Load combined eye images and openness labels from the SQLite database.
-    
-    Only rows where both leftEyeFrame and rightEyeFrame are non-empty are used.
-    The combined image is created by concatenating the left and right images side-by-side.
-    The label is a continuous value: openness.
-    """
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT leftEyeFrame, rightEyeFrame, openness
-        FROM training_data
-        WHERE leftEyeFrame != '' AND rightEyeFrame != '' AND type == 'openness'
-        ORDER BY RANDOM()
-        LIMIT 25000
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-    
-    combined_images = []
-    labels = []
-    
-    for left_frame, right_frame, openness in rows:
-        left_img = preprocess_eye(left_frame, size=(128, 128))
-        right_img = preprocess_eye(right_frame, size=(128, 128))
-        # Apply random offset augmentation to both images.
-        left_img = random_offset_image(left_img, max_offset=MAX_OFFSET)
-        right_img = random_offset_image(right_img, max_offset=MAX_OFFSET)
-        # Concatenate images along width (axis=1)
-        combined_img = np.concatenate([left_img, right_img], axis=1)
-        combined_images.append(combined_img)
-        labels.append([openness])
-    
-    return np.array(combined_images), np.array(labels)
+    def __len__(self):
+        return int(np.ceil(len(self.rows) / self.batch_size))
 
-def build_model():
-    """
-    Build and compile the Combined Eye Openness model.
-    """
+    def __getitem__(self, idx):
+        batch_indices = self.indices[idx * self.batch_size:(idx + 1) * self.batch_size]
+        batch_images = []
+        batch_labels = []
+        for i in batch_indices:
+            row = self.rows[i]
+            left_img_path = os.path.join(self.dataset_dir, row["left_image"])
+            right_img_path = os.path.join(self.dataset_dir, row["right_image"])
+            openness = float(row["openness"])
+
+            left_img = Image.open(left_img_path).convert("L").resize(self.img_size)
+            right_img = Image.open(right_img_path).convert("L").resize(self.img_size)
+            left_img = np.array(left_img) / 255.0
+            right_img = np.array(right_img) / 255.0
+            left_img = np.expand_dims(left_img, axis=-1)
+            right_img = np.expand_dims(right_img, axis=-1)
+            combined_img = np.concatenate([left_img, right_img], axis=1)
+            batch_images.append(combined_img)
+            batch_labels.append([openness])
+        return np.array(batch_images), np.array(batch_labels)
+
+    def on_epoch_end(self):
+        if self.shuffle:
+            np.random.shuffle(self.indices)
+
+def main():
+    csv_path = os.path.join(OPENNESS_DATASET_DIR, "labels.csv")
+    all_rows = load_labels(csv_path)
+
+    # Split into train/test
+    indices = np.arange(len(all_rows))
+    train_idx, test_idx = train_test_split(indices, test_size=0.2, random_state=42)
+    train_rows = [all_rows[i] for i in train_idx]
+    test_rows = [all_rows[i] for i in test_idx]
+
+    # Further split train into train/val
+    val_split = int(0.1 * len(train_rows))
+    val_rows = train_rows[:val_split]
+    train_rows = train_rows[val_split:]
+
+    train_gen = OpennessDataGenerator(train_rows, OPENNESS_DATASET_DIR, batch_size=BATCH_SIZE, shuffle=True)
+    val_gen = OpennessDataGenerator(val_rows, OPENNESS_DATASET_DIR, batch_size=BATCH_SIZE, shuffle=False)
+    test_gen = OpennessDataGenerator(test_rows, OPENNESS_DATASET_DIR, batch_size=BATCH_SIZE, shuffle=False)
+
+    # Build the model
     model = Sequential([
-        InputLayer(input_shape=(128, 256, 3)),
-        
+        InputLayer(input_shape=INPUT_SHAPE),
+        RandomTranslation(height_factor=MAX_OFFSET/128, width_factor=MAX_OFFSET/256, fill_mode="constant"),
         Conv2D(32, (7, 7), activation='relu'),
         MaxPooling2D((3, 3)),
-        
         Conv2D(64, (7, 7), activation='relu'),
         MaxPooling2D((3, 3)),
-        
         Conv2D(128, (7, 7), activation='relu'),
         MaxPooling2D((3, 3)),
         Flatten(),
-        
         Dropout(0.2),
         Dense(64, activation='relu'),
         Dense(1, name='open-c')
     ])
-    model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-    return model
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Train Combined Eye Openness Model from SQLite DB"
+    model.compile(
+        optimizer=Adam(learning_rate=LEARNING_RATE),
+        loss='mse',
+        metrics=['mae']
     )
-    parser.add_argument("--db_path", required=True, help="Path to the SQLite database file")
-    parser.add_argument("--output_dir", required=True, help="Folder to save the trained model")
-    args = parser.parse_args()
-    
-    print("Loading data from:", args.db_path)
-    images, labels = load_data_from_db(args.db_path)
-    print("Images shape:", images.shape, "Labels shape:", labels.shape)
-    
-    X_train, X_test, y_train, y_test = train_test_split(
-        images, labels, test_size=0.2, random_state=42
-    )
-    
-    model = build_model()
     model.summary()
-    
+
+    # Callbacks
     lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor='val_loss', factor=0.5, patience=5, verbose=1, min_lr=1e-6
+        monitor='val_loss', factor=0.5, patience=2, verbose=1, min_lr=1e-6
     )
     early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss', patience=15, restore_best_weights=True, verbose=1
+        monitor='val_loss', patience=4, restore_best_weights=True, verbose=1
     )
-    
+
     history = model.fit(
-        X_train, y_train,
-        epochs=250,
-        batch_size=32,
-        validation_split=0.1,
+        train_gen,
+        epochs=EPOCHS,
+        validation_data=val_gen,
         callbacks=[lr_scheduler, early_stopping]
     )
-    
-    results = model.evaluate(X_test, y_test)
+
+    results = model.evaluate(test_gen)
     print("Test loss and MAE:", results)
-    
-    os.makedirs(args.output_dir, exist_ok=True)
-    model_save_path = os.path.join(args.output_dir, "combined_openness.h5")
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    model_save_path = os.path.join(OUTPUT_DIR, "combined_openness.h5")
     model.save(model_save_path)
     print("Model saved to", model_save_path)
 
